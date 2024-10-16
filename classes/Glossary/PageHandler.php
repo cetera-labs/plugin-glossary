@@ -67,6 +67,7 @@ class PageHandler {
 
     try {
       $othersMaterialsCatalog = $s->getChildByAlias('for_glossary');
+      $this->otherMatearials = [];
       $this->getOtherMaterials( $othersMaterialsCatalog );
     } catch (\Cetera\Exception\CMS $e) {
       $this->otherMatearials = [];
