@@ -5,6 +5,9 @@ namespace Glossary;
 class PageHandler {
 
   protected $data;
+
+  protected $otherMatearials;
+
   protected $isMainDomain;
 
   static public function init($glossaryCatalogs) {
@@ -59,15 +62,29 @@ class PageHandler {
   }
 
   protected function getContainsTermsData($html, $url) {
+    $a = \Cetera\Application::getInstance();
+    $s = $a->getServer();
+
+    try {
+      $othersMaterialsCatalog = $s->getChildByAlias('for_glossary');
+      $this->getOtherMaterials( $othersMaterialsCatalog );
+    } catch (\Cetera\Exception\CMS $e) {
+      $this->otherMatearials = [];
+    }
+
     $typeIdGlossary = \Cetera\ObjectDefinition::findByAlias('glossary')->getId();
     $glossaryMaterials = \Cetera\ObjectDefinition::findById($typeIdGlossary)->getMaterials();
-	$typeIdCatalog = \Cetera\ObjectDefinition::findByAlias('sale_products')->getId();
+    
+	  $typeIdCatalog = \Cetera\ObjectDefinition::findByAlias('sale_products')->getId();
     $catalogMaterials = \Cetera\ObjectDefinition::findById($typeIdCatalog)->getMaterials();
-	$allMaterials = [...$glossaryMaterials, ...$catalogMaterials];
+
+    $othersMaterials = $this->otherMatearials;
+    
+	  $allMaterials = [...$catalogMaterials, ...$othersMaterials, ...$glossaryMaterials];
     $termsAndSynonyms = $this->createDataForReferences($allMaterials);
-	$html = str_replace("|", "", $html);
-	$lowerHtml = mb_strtolower($html);
-	str_ends_with($url, '/') ? $url = $url : $url = $url."/";
+	  $html = str_replace("|", "", $html);
+	  $lowerHtml = mb_strtolower($html);
+	  str_ends_with($url, '/') ? $url = $url : $url = $url."/";
     $terms = array_reduce($termsAndSynonyms, function($result, $termData) use ($html, $lowerHtml, $url) {
 		str_ends_with($termData['url'], 'index') ? $termData['url'] = substr($termData['url'], 0, -5) : $termData['url'] = $termData['url']."/";
 		if ($url == $termData['url']) {
@@ -83,6 +100,16 @@ class PageHandler {
     },[]);
     
     return $this->getOtherTermsContainsTerm($terms);
+  }
+
+  protected function getOtherMaterials($c) {
+      foreach($c->getMaterials() as $m) {
+        $this->otherMatearials[] = $m;
+      }
+      
+      foreach ($c->getChildren() as $_c) if (!$_c->isHidden()) {
+          $this->getOtherMaterials($_c);
+      }    
   }
 
   protected function createDataForReferences($materials) {
