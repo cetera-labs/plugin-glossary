@@ -21,6 +21,10 @@ class PageHandler {
   }
 
   public function __invoke(&$res) {
+    $a = \Cetera\Application::getInstance();
+    $currLocale = $a->getLocale();
+    if ($currLocale !== 'ru') return;
+	  
     $newHtml = $res;
     $htmlWithoutNoIndexContent = $this->replaceNoIndexContent($newHtml);
 
