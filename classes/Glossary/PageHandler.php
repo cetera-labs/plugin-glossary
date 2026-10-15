@@ -62,7 +62,52 @@ class PageHandler {
     $withoutNoIndexTags = mb_ereg_replace_callback($noIndexTags, fn($match) => str_repeat('|', strlen($match[0])), $html);
     $onlyText = mb_ereg_replace_callback("<.*?>", fn($match) => str_repeat('|', strlen($match[0])), $withoutNoIndexTags); 
 
-    return $onlyText;
+    $onlyText = $this->keepParagraphsOnly($html, $onlyText);
+
+    return $this->maskExcluded($html, $onlyText);
+  }
+
+  protected function keepParagraphsOnly($html, $text) {
+    $allowed = str_repeat('|', strlen($text));
+    preg_match_all('~<(p|li)\s*>(.*?)</\1\s*>~is', $html, $matches, PREG_OFFSET_CAPTURE);
+    foreach ($matches[2] as [$inner, $pos]) {
+      $allowed = substr_replace($allowed, substr($text, $pos, strlen($inner)), $pos, strlen($inner));
+    }
+    return $allowed;
+  }
+
+  protected function maskRange($text, $start, $length) {
+    return substr_replace($text, str_repeat('|', $length), $start, $length);
+  }
+
+  protected function maskExcluded($html, $text) {
+    preg_match_all('~\[\[.*?\]\]~s', $html, $variables, PREG_OFFSET_CAPTURE);
+    foreach ($variables[0] as [$variable, $pos]) $text = $this->maskRange($text, $pos, strlen($variable));
+
+    $opening = '~<([a-z][a-z0-9]*)\b[^>]*\sclass\s*=\s*["\'][^"\']*\bno-autolink\b[^"\']*["\'][^>]*>~i';
+    $void = ['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'];
+    $offset = 0;
+    while (preg_match($opening, $html, $m, PREG_OFFSET_CAPTURE, $offset)) {
+      $start = $m[0][1];
+      $from = $start + strlen($m[0][0]);
+      $offset = $from;
+      $tag = strtolower($m[1][0]);
+      if (in_array($tag, $void) || substr($m[0][0], -2) === '/>') continue;
+
+      $end = strlen($html);
+      $depth = 1;
+      preg_match_all('~<(/?)' . $tag . '\b[^>]*>~i', $html, $tags, PREG_SET_ORDER | PREG_OFFSET_CAPTURE, $from);
+      foreach ($tags as $t) {
+        $depth += $t[1][0] === '/' ? -1 : 1;
+        if ($depth === 0) {
+          $end = $t[0][1] + strlen($t[0][0]);
+          break;
+        }
+      }
+      $text = $this->maskRange($text, $start, $end - $start);
+    }
+
+    return $text;
   }
 
   protected function getContainsTermsData($html, $url) {
